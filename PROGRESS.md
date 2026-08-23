@@ -1279,3 +1279,33 @@ rate, compared two differently-sampled arrays, and got noise. Loading both at a
 matched rate gives 0.9941. A metric that disagrees with a previously measured
 0.984 by three orders of magnitude is measuring the wrong thing, not
 discovering a catastrophe.
+
+### Demucs is now the default engine
+
+Validated across all four reference tracks rather than the one the first
+measurement used, because a single run is not a result:
+
+| track | audio-separator | demucs |
+|---|---|---|
+| Mr. Vain | 85.7 s | **58.2 s** |
+| Run To Me | 57.0 s | **41.6 s** |
+| Be My Lover | 58.9 s | **42.7 s** |
+| Tonight Is The Night | 58.6 s | **42.0 s** |
+| **mean** | 65.1 s | **46.1 s** |
+
+**Speed is the whole of it, and quality is a wash.** That distinction matters
+and the first single-track measurement obscured it. Reconstruction averages
+0.9957 against 0.9946 but is *mixed per track* -- demucs wins two and loses
+two -- and the band measurements are indistinguishable: bass energy in the low
+band 0.732 vs 0.731, vocal energy leaking into it 0.036 vs 0.036. It is the
+same model producing the same stems; only the wrapper is quicker.
+
+`DEFAULT_BACKEND = "demucs"`. `audio-separator` stays as the automatic
+fallback when demucs is not installed, and can be forced with
+`AUTODJ_STEM_BACKEND=audio-separator`. Three paths verified: default 43.0 s,
+forced audio-separator 59.0 s, and demucs made to look absent 57.3 s -- all
+four stems each time.
+
+The fallback is deliberately silent rather than an error. The wrapped path is
+always present and runs the same model, so an optional package going missing
+should cost speed, not function.

@@ -151,6 +151,30 @@ of pitch movement the glide switches from resampling to a pitch-preserving
 block-wise stretch, because 5% is 84 cents and no amount of harmonic planning
 survives that.
 
+### Stem separation
+
+Both backends run the same model, `htdemucs_ft`. The default is **native
+Demucs**; `audio-separator` remains as the automatic fallback and can be forced
+with `AUTODJ_STEM_BACKEND=audio-separator`.
+
+The difference is speed, not quality. Over the four reference tracks:
+
+| | audio-separator | demucs |
+|---|---|---|
+| mean seconds | 65.1 | **46.1** |
+| stems sum back to source | 0.9946 | 0.9957 |
+| bass energy in the low band | 0.731 | 0.732 |
+| vocal energy in the low band | 0.036 | 0.036 |
+
+Demucs was faster on **every** track. Reconstruction is a wash — it wins two
+and loses two — and the band measurements are indistinguishable. Same stems,
+about 29% sooner.
+
+Demucs runs in a **subprocess**, which is necessity rather than caution:
+`audio_separator` prepends its own vendored copy of Demucs to `sys.path[0]`
+when it loads a model, so `import demucs` resolves to that fork for the rest of
+the process. The two cannot share an interpreter.
+
 ### `--audition`
 
 Renders each join's plausible transitions on the real audio and keeps whichever
@@ -192,7 +216,8 @@ autodj/
   export.py         mix.json and mix_dsp.json
   stems/
     cuda.py         per-model GPU setup; the two stacks cannot share PATH
-    separate.py     Demucs 4-stem separation, FLAC disk cache
+    separate.py     Demucs 4-stem separation, two backends, FLAC disk cache
+    _demucs_worker.py  native Demucs, in its own process (see below)
     mashup.py       stem bass swap, acapella-over-instrumental
   gui/
     theme.py        every colour, space, type and motion token; the audit
@@ -255,6 +280,6 @@ Each of these cost real debugging. They are written up in `PROGRESS.md`.
   remained was the master chain over the whole mix. The fix was not a better
   cache; it was rendering the join instead of the set.
 
-Separation runs at ~60 s/track on an RTX 3060; stems reconstruct the source at
-0.984 correlation, bass 96% in the low band, vocals 0.3% -- no bleed. Beat
-alignment across joins measures 6.86 ms mean against a 3.73 ms noise floor.
+Separation runs at **~46 s/track** on an RTX 3060 with the default Demucs
+backend; stems reconstruct the source at 0.996 correlation. Beat alignment
+across joins measures 6.86 ms mean against a 3.73 ms noise floor.

@@ -18,6 +18,18 @@ cuda.enable_ffmpeg()   # CUDA is prepared per model, in check_device()
 
 STEM_NAMES = ("vocals", "drums", "bass", "other")
 DEFAULT_MODEL = "htdemucs_ft.yaml"      # 4-stem Demucs, best quality/speed here
+
+# Both backends run htdemucs_ft. The difference is the wrapper, and it is
+# speed rather than quality: over the four reference tracks demucs averaged
+# 46.1 s against audio-separator's 65.1 s and was faster on every one of them,
+# while reconstruction (0.9957 vs 0.9946), bass-in-band (0.732 vs 0.731) and
+# vocal bleed (0.036 vs 0.036) were a wash -- demucs won two tracks on
+# reconstruction and lost two.
+#
+# So: the same stems, ~29% sooner. `audio-separator` stays available and is
+# the automatic fallback, because it has no optional dependency and no
+# subprocess.
+DEFAULT_BACKEND = "demucs"
 CACHE_DIR = Path("cache/stems")
 MODEL_DIR = Path("cache/models")
 MAX_CACHE_GB = 20.0
@@ -218,11 +230,10 @@ def separate(path, model=DEFAULT_MODEL, cache_dir=CACHE_DIR, force=False,
              require_gpu=True, backend=None):
     """Separate one track. Returns {stem_name: Path} and seconds taken.
 
-    `backend` picks the engine: "audio-separator" (default) or "demucs". It
-    falls back to the environment variable `AUTODJ_STEM_BACKEND` so the choice
-    can be made without touching a call site, and falls back again to the
-    wrapped path if demucs is not installed -- an unavailable backend should
-    degrade, not raise, because the two produce the same stems.
+    `backend` picks the engine: "demucs" (the default) or "audio-separator".
+    It falls back to the environment variable `AUTODJ_STEM_BACKEND` so the
+    choice can be made without touching a call site, and falls back again to
+    the wrapped path when demucs is not installed.
     """
     path = Path(path)
     cached = None if force else load_cached(path, cache_dir)
@@ -230,8 +241,11 @@ def separate(path, model=DEFAULT_MODEL, cache_dir=CACHE_DIR, force=False,
         return cached, 0.0
 
     backend = (backend or os.environ.get("AUTODJ_STEM_BACKEND")
-               or "audio-separator").lower()
+               or DEFAULT_BACKEND).lower()
     if backend == "demucs" and not _demucs_available():
+        # Not an error. The wrapped path runs the same model and is always
+        # present, so an absent optional package should cost speed, not
+        # function.
         backend = "audio-separator"
 
     if backend == "demucs":
