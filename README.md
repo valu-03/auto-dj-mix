@@ -255,11 +255,6 @@ Each of these cost real debugging. They are written up in `PROGRESS.md`.
   remained was the master chain over the whole mix. The fix was not a better
   cache; it was rendering the join instead of the set.
 
-## Status
-
-Phases 1-6 complete. Analysis, planning, section arrangement, 18 transitions,
-stem separation, the master chain, playback, editing and the GUI all working.
-
 Separation runs at ~60 s/track on an RTX 3060; stems reconstruct the source at
 0.984 correlation, bass 96% in the low band, vocals 0.3% -- no bleed. Beat
 alignment across joins measures 6.86 ms mean against a 3.73 ms noise floor.
