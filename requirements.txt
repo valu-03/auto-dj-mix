@@ -1,0 +1,56 @@
+# --- core: analysis, DSP, rendering -----------------------------------------
+librosa>=1.0.0          # beat tracking, chroma, onsets, structure
+soundfile>=0.14.0       # audio I/O; bundles libsndfile 1.2 -> MP3 in AND out
+pyloudnorm>=0.2.0       # EBU R128 integrated loudness
+mutagen>=1.48.0         # ID3 tags
+numpy>=2.0
+scipy>=1.14
+
+# --- GUI (phase 6) -----------------------------------------------------------
+PyQt6>=6.7
+
+# --- stem separation (phase 5) -----------------------------------------------
+audio-separator>=0.44.5
+static-ffmpeg
+
+# torch must be the CUDA build, and it is NOT what `pip install torch` gives
+# you on Windows -- that is a +cpu wheel. Install the matching CUDA build of
+# the SAME version, so nothing else in the environment sees a different API:
+#
+#   pip install --index-url https://download.pytorch.org/whl/cu126 \
+#       torch==2.13.0+cu126
+#
+# torch>=2.13   (installed from the cu126 index, not PyPI)
+
+# onnxruntime-gpu is only needed for ONNX (MDX-Net) models. The default model
+# here is Demucs, which runs on torch, so this is optional:
+# onnxruntime-gpu==1.22.0
+# nvidia-cudnn-cu12>=9.0
+# nvidia-cublas-cu12
+# nvidia-cuda-runtime-cu12
+
+# Notes that cost real time to rediscover:
+#
+#  * NEVER `pip install demucs` - it requires torchaudio, which tops out at
+#    2.11 and would downgrade torch 2.13. audio-separator runs the same models
+#    without the pin.
+#  * THERE ARE TWO GPU STACKS AND THEY FIGHT. audio-separator picks a backend
+#    from the model's file extension: .onnx -> onnxruntime, .yaml/.th -> torch.
+#    A perfect onnxruntime CUDA check says NOTHING about whether Demucs will
+#    use the GPU. `htdemucs_ft.yaml` is torch, and on a +cpu torch it ran past
+#    19 minutes for one 4-minute track (57 s on the GPU).
+#  * They also cannot share PATH. onnxruntime needs the nvidia-*-cu12 wheels in
+#    site-packages/nvidia/*/bin prepended; torch ships its own copies of those
+#    same libraries in torch/lib. Put the nvidia wheels first and torch fails
+#    at import with WinError 127 on cudnn_cnn64_9.dll. So the PATH surgery is
+#    scoped per model in autodj/stems/cuda.py:enable_for(), never at import.
+#  * onnxruntime-gpu is pinned to 1.22: 1.29 needs CUDA 13, whose runtime
+#    wheels on PyPI are placeholder stubs (version 0.0.1).
+#  * Neither backend raises when it cannot reach the GPU - both silently run on
+#    CPU. `stems.device_status(model)` proves it; `separate()` refuses to start
+#    without a GPU unless you pass require_gpu=False.
+#  * audio-separator 0.44 calls `librosa.get_duration(filename=...)`, a keyword
+#    librosa 1.0 deleted. It throws on the LAST step, after the GPU work is
+#    done, writing nothing. Shimmed in stems/separate.py:_patch_librosa().
+#  * ffmpeg is NOT needed for anything else in this project (libsndfile covers
+#    MP3), but audio-separator shells out to it and refuses to start without.

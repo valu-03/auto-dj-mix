@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+
+# Analysis cache, separation models and stems: all regenerable, all large.
+cache/
+
+# Rendered mixes and their sidecars.
+output/
+
+# Source audio. Commercial recordings -- these are the input to the program,
+# not part of it, and they are not ours to redistribute.
+musica/
+musica2/
+reference/
+refmix/
+
+# Demo artefacts are audio rendered FROM that source material, so the same
+# applies. The interface captures are ours and are kept -- they are what the
+# README shows.
+demos/*.wav
+demos/*.mp3
+demos/*.flac
+!demos/gui/
+!demos/*.png
