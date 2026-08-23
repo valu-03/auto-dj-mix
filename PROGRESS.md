@@ -1218,3 +1218,64 @@ And `transition_fx` clamps: reverb at amount 0.8 took a peak of 0.97 up to
 **1.566**. On the render path the master chain would catch it, but a join
 preview is never mastered, and a float sink handed 1.5 produces full-scale
 noise rather than a loud reverb.
+
+### Making the libraries earn their place
+
+**Two transitions that use pedalboard**, so the dependency is called rather
+than merely installed:
+
+- **Reverb wash** — the outgoing track dissolves into its own reverb tail. The
+  move an echo-out cannot make: an echo *repeats* what was just played, so the
+  outgoing track stays recognisable and keeps competing; a reverb tail smears
+  it into unpitched texture. The safest thing to do across a hard key clash.
+- **Ladder filter** — `filter_sweep` with a resonant 24 dB/oct ladder instead
+  of a Butterworth. The band curves are byte-identical to `filter_sweep` on
+  purpose, so if it sounds better that is the filter and not a different fade.
+
+`Transition` gained an `fx` field the renderer reads next to `echo`/`roll`/
+`riser`. When pedalboard is absent the effect is skipped and the transition
+still works from its curves — quieter than intended, never broken.
+
+Verified as actually applied rather than assumed: against `filter_sweep` on the
+same two tracks, `ladder_sweep` differs on **76.6%** of samples and
+`reverb_wash` on **87.4%**, both with peak still at the 0.97 ceiling.
+
+### A native Demucs backend, and why it needs its own process
+
+`AUTODJ_STEM_BACKEND=demucs` (or `backend="demucs"`) runs Demucs directly on
+torch instead of through audio-separator. Measured on *Be My Lover*:
+
+| | audio-separator | demucs |
+|---|---|---|
+| seconds | 62.2 | **42.3** |
+| stems sum back to source (r) | 0.9941 | **0.9966** |
+| stems produced | 4 | 4 |
+
+**32% faster and marginally cleaner**, so it is worth having — but the default
+stays `audio-separator` until that holds over more than one track on one run.
+
+The backend runs in a **subprocess**, and that is necessity rather than
+caution. `audio_separator` prepends its own vendored copy of Demucs to
+`sys.path[0]` when it loads a model:
+
+    sys.path[0] = .../audio_separator/separator/architectures/../uvr_lib_v5
+
+From that point `import demucs` resolves to the fork for the rest of the
+process, and `get_model` goes looking for the fork's `remote/files.txt`. That
+is exactly how the first attempt failed. No import ordering fixes it — the path
+is rewritten at model-load time, after any import we control. Separation
+already costs a minute and communicates through files, so a fresh interpreter
+costs nothing measurable. The worker asserts it did not get the fork.
+
+Both backends write the same `_(Tag)_` filenames into the same content-keyed
+cache, so `load_cached` cannot tell which produced a folder.
+
+### A measurement bug worth remembering
+
+The first backend comparison reported a reconstruction correlation of
+**0.0006** — stems that do not sum to their source at all. The stems were fine;
+the benchmark loaded them at their native rate and the source at *its* native
+rate, compared two differently-sampled arrays, and got noise. Loading both at a
+matched rate gives 0.9941. A metric that disagrees with a previously measured
+0.984 by three orders of magnitude is measuring the wrong thing, not
+discovering a catastrophe.
